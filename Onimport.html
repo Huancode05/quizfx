@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>题库自测-自行导入</title>
+
+<style>
+:root{
+  --bg:#f5f7fb;--card:#ffffff;--text:#0f172a;
+  --primary:#4f46e5;--ok:#16a34a;--bad:#dc2626;
+  --muted:#64748b;--border:#e2e8f0;
+}
+body.dark{
+  --bg:#0b1220;--card:#111827;--text:#e5e7eb;
+  --muted:#94a3b8;--border:#1f2937;
+}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;
+}
+.container{max-width:980px;margin:auto;padding:16px}
+.card{
+  background:var(--card);border-radius:20px;padding:20px;
+  box-shadow:0 20px 40px rgba(0,0,0,.08)
+}
+.hidden{display:none}
+
+/* 导入区 */
+.drag{
+  border:2px dashed var(--muted);
+  border-radius:16px;
+  padding:16px;
+  text-align:center;
+  margin-bottom:16px;
+}
+
+/* Header */
+.header{
+  display:flex;justify-content:space-between;align-items:center;
+}
+.header-left{
+  display:flex;align-items:center;gap:12px;
+}
+.stats{font-weight:600}
+#fileName{font-weight:600;color:var(--muted);}
+
+/* 菜单 */
+.menu{position:relative}
+.menu-btn{
+  background:none;
+  font-size:22px;
+  color:var(--text);
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.menu-list{
+  position:absolute;
+  right:0; top:38px;
+  background:var(--card);
+  border-radius:14px;
+  box-shadow:0 15px 35px rgba(0,0,0,.25);
+  padding:8px;
+  min-width:200px;
+  opacity:0; transform:scale(.95);
+  pointer-events:none; transition:.18s ease;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  z-index: 10;
+}
+.menu-list.show{
+  opacity:1; transform:scale(1); pointer-events:auto;
+}
+.menu-list a,
+.menu-list button,
+.menu-list label{
+  width:100%;
+  text-align:left;
+  background:none;
+  padding:10px 12px;
+  border-radius:10px;
+  color:var(--text);
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+}
+.menu-list a:hover,
+.menu-list button:hover{
+  background:rgba(79,70,229,.1);
+}
+
+/* 题目 & 图片容器样式 */
+.question{
+  margin-top:18px;
+  font-size:22px;
+  font-weight:600;
+  line-height:1.65;
+}
+/* 图片容器核心样式 */
+.img-container{
+  margin: 12px 0;
+  width: 100%;
+}
+.img-toggle-btn{
+  background: rgba(79,70,229,.1);
+  color: var(--primary);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+body.dark .img-toggle-btn{
+  background: rgba(79,70,229,.2);
+}
+.img-toggle-btn:hover{
+  background: rgba(79,70,229,.2);
+}
+body.dark .img-toggle-btn:hover{
+  background: rgba(79,70,229,.3);
+}
+/* 图片响应式样式，防止溢出 */
+.question-img{
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+}
+
+.options{
+  margin-top:16px;
+  display:flex;flex-direction:column;gap:12px
+}
+.option{
+  padding:14px 16px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  font-size:18px;
+  cursor:pointer
+}
+.option.correct{
+  border-left:6px solid var(--ok);
+  background:rgba(22,163,74,.08)
+}
+body.dark .option.correct{
+  background:rgba(22,163,74,.12)
+}
+.option.wrong{
+  border-left:6px solid var(--bad);
+  background:rgba(220,38,38,.08)
+}
+
+/* Footer */
+.footer{
+  display:flex;justify-content:space-between;margin-top:22px
+}
+button{
+  min-height:44px;
+  border:none;border-radius:14px;
+  padding:8px 16px;
+  background:var(--primary);color:#fff;
+  cursor: pointer;
+}
+button.secondary{background:#64748b}
+
+@media(max-width:640px){
+  .question{font-size:20px}
+  .option{font-size:17px}
+  .img-toggle-btn{font-size:14px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+<!-- 登录弹层（新增） -->
+<div id="loginMask" style="
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.45);
+  display:none; align-items:center; justify-content:center;
+  z-index:999;
+">
+  <div style="
+    background:var(--card);
+    padding:24px;
+    border-radius:16px;
+    width:300px;
+    box-shadow:0 20px 40px rgba(0,0,0,.3);
+  ">
+    <h3 style="margin-top:0">👤 用户登录</h3>
+
+    <input id="loginName" placeholder="用户名"
+      style="width:100%;padding:10px;margin:6px 0"/>
+
+    <input id="loginPass" placeholder="口令（随便填）"
+      type="password"
+      style="width:100%;padding:10px;margin:6px 0"/>
+
+    <button onclick="doLogin()" style="width:100%;margin-top:10px">
+      登录 / 进入
+    </button>
+  </div>
+</div>
+<!-- 题库导入区 -->
+<div class="drag" id="loader">
+  📁 拖拽 TXT 题库（JSON 内容）<br><br>
+  <button onclick="fileInput.click()">点击上传</button>
+  <input type="file" id="fileInput" accept=".txt" hidden>
+</div>
+
+<div class="card">
+  <div class="header">
+    <div class="header-left">
+      <span id="fileName">未加载文件</span>
+      <div class="stats" id="stats">未加载题库</div>
+      <span id="userStatus" style="font-size:13px;color:var(--muted)"></span>
+      <span id="syncStatus" style="font-size:13px;color:var(--muted)"></span>
+    </div>
+
+    <div class="menu">
+      <button class="menu-btn" onclick="toggleMenu(event)">⋮</button>
+      <div class="menu-list" id="menuList">
+  <a href="index.html">🏠 返回首页</a>
+  <button onclick="togglePreview()">👀 全局预览</button>
+  <button onclick="exportReview()">💾 导出复习包</button>
+  <button onclick="importReview()">📥 导入复习包</button>
+  <label><input type="checkbox" id="autoNext" checked> 答对自动下一题</label>
+  <label><input type="checkbox" id="darkMode"> 夜间模式</label>
+  <button onclick="toggleLoader()">📁 题库导入</button>
+  <button onclick="toggleWrong()">❌ 错题模式</button>
+  <button onclick="logout()">🔄 切换用户</button>
+  
+ <!-- 新增跳转功能 -->
+<div style="margin-top:6px; display:flex; gap:6px; align-items:center;">
+  <input type="number" id="jumpInputMenu" min="1" placeholder="题号" style="width:60px; padding:2px;"/>
+  <button onclick="jumpToMenu()">跳转</button>
+</div>
+<button onclick="showProgressList()">📚 我的进度</button>
+</div>
+    </div>
+  </div>
+
+  <div id="content"></div>
+
+  <div class="footer">
+    <button class="secondary" onclick="prev()">上一题</button>
+    <button onclick="next()">下一题</button>
+  </div>
+</div>
+
+</div>
+
+<!-- 复习包导入专用 -->
+<input type="file" id="reviewInput" accept=".txt" hidden>
+
+<!-- 我的进度列表 -->
+<div id="progressMask" style="
+  position:fixed; inset:0;
+  background:rgba(0,0,0,.45);
+  display:none; align-items:center; justify-content:center;
+  z-index:999;
+">
+  <div style="
+    background:var(--card);
+    padding:20px;
+    border-radius:16px;
+    width:320px;
+    max-height:70vh;
+    overflow:auto;
+  ">
+    <h3 style="margin-top:0">📚 我的进度</h3>
+    <div id="progressList" style="font-size:14px;color:var(--text)"></div>
+    <button class="secondary" style="margin-top:12px;width:100%" onclick="closeProgressList()">关闭</button>
+  </div>
+</div>
+
+<script>
+let all=[],view=[],wrong=new Set();
+let i=0,preview=false,inWrong=false,hasProgress=false;
+// ====== 新增：用户 & 题库标识 ======
+let userKey = null;
+let fileHash = null;
+// ====== 新增：用户名 ======
+let userName = null;
+const $=id=>document.getElementById(id);
+// ====== 临时日志工具（Blobs 未启用时用于定位问题）======
+// 后期可整体删除
+function log(msg){
+  const box = $("debugLog");
+  if(!box) return;
+  box.style.display = "block";
+  const line = document.createElement("div");
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ====== 新增：SHA1 工具 ======
+async function sha1(text){
+  const buf = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest("SHA-1", buf);
+  return [...new Uint8Array(hash)]
+    .map(b=>b.toString(16).padStart(2,"0"))
+    .join("");
+}
+
+// ====== 新增：UI 状态显示 ======
+function updateUserStatus(){
+  if(userKey && userName){
+    $("userStatus").textContent = `👤 ${userName}`;
+  }else{
+    $("userStatus").textContent = "";
+  }
+}
+
+function setSyncStatus(text){
+  $("syncStatus").textContent = text;
+}
+
+// ====== 新增：登录逻辑 ======
+async function doLogin(){
+  const name = $("loginName").value.trim();
+  const pass = $("loginPass").value.trim();
+  if(!name || !pass){
+    alert("请输入用户名和口令");
+    return;
+  }
+  userKey = await sha1(name + "::" + pass);
+  localStorage.setItem("userKey", userKey);
+  userName = name;
+  localStorage.setItem("userName", userName);
+  $("loginMask").style.display="none";
+  updateUserStatus();
+  log(`👤 用户登录成功：${userName}`);
+}
+
+function ensureLogin(){
+  userKey = localStorage.getItem("userKey");
+  userName = localStorage.getItem("userName");
+  if(!userKey){
+    $("loginMask").style.display="flex";
+  }
+  updateUserStatus();
+}
+// ====== 新增：切换用户 ======
+function logout(){
+  localStorage.removeItem("userKey");
+  localStorage.removeItem("userName");
+  userKey = null;
+  userName = null;
+  fileHash = null;
+  setSyncStatus("");
+  $("userStatus").textContent = "";
+  $("loginMask").style.display = "flex";
+  log("🔄 用户已切换 / 登出");
+}
+
+/* 菜单 */
+function toggleMenu(e){
+  e.stopPropagation();
+  $("menuList").classList.toggle("show");
+}
+document.addEventListener("click",()=>{
+  $("menuList").classList.remove("show");
+});
+
+/* 题库导入 */
+function toggleLoader(){
+  $("loader").classList.toggle("hidden");
+}
+function loadFile(f){
+  if(!f.name.endsWith(".txt"))return alert("只支持 TXT");
+  const r=new FileReader();
+ r.onload = async ()=>{
+  const text = r.result;
+  const data = JSON.parse(text);
+
+  fileHash = await sha1(text); // ⭐ 新增：题库唯一 ID
+
+  all = data.items.map((q,idx)=>({...q,_idx:idx}));
+  view = all;
+  i = 0;
+  wrong.clear();
+  hasProgress = false;
+
+  $("loader").classList.add("hidden");
+  $("fileName").textContent = f.name;
+
+  await loadRemoteProgress(); // ⭐ 新增：拉取云端进度
+  render();
+};
+  r.readAsText(f);
+}
+fileInput.onchange=e=>loadFile(e.target.files[0]);
+loader.ondragover=e=>e.preventDefault();
+loader.ondrop=e=>{
+  e.preventDefault();
+  loadFile(e.dataTransfer.files[0]);
+};
+
+/**
+ * 核心：解析题干，识别【图片：链接】格式并转换为可展开的图片容器
+ * @param {string} title - 原始题干内容
+ * @returns {string} 解析后的带图片容器的题干HTML
+ */
+function parseQuestionTitle(title) {
+  // 正则匹配【图片：任意链接】格式，支持任意合法链接（http/https/相对路径等）
+  const imgReg = /【图片：(.*?)】/g;
+  return title.replace(imgReg, (match, imgUrl) => {
+    // 生成图片容器，图片默认隐藏，包含切换按钮
+    return `
+      <div class="img-container">
+        <button class="img-toggle-btn" onclick="toggleImage(this)">
+          📷 点击查看图片
+        </button>
+        <img src="${imgUrl}" class="question-img" hidden alt="题目图片">
+      </div>
+    `;
+  });
+}
+
+/**
+ * 图片展示/收起切换函数
+ * @param {HTMLElement} btn - 点击的切换按钮
+ */
+function toggleImage(btn) {
+  const img = btn.nextElementSibling;
+  const isHidden = img.hidden;
+  // 切换图片显示状态
+  img.hidden = !isHidden;
+  // 切换按钮文字
+  btn.innerHTML = isHidden ? '📷 收起图片' : '📷 点击查看图片';
+}
+
+/* 渲染 */
+function render(){
+  const c=$("content");
+  c.innerHTML="";
+  if(!view.length){
+    c.innerHTML="<div style='color:var(--muted)'>请先导入题库</div>";
+    return;
+  }
+  if(preview){
+    view.forEach((q,idx)=>{
+      // 全局预览模式也解析图片
+      const parsedTitle = parseQuestionTitle(q.title);
+      c.innerHTML+=`
+        <div style="margin-bottom:20px; padding-bottom:20px; border-bottom:1px solid var(--border)">
+          <b>${idx+1}. ${parsedTitle}</b>
+          ${q.options.map(o=>`<div style="margin:4px 0">${o.label}. ${o.text}</div>`).join("")}
+          <div style="color:var(--ok); margin-top:8px">答案：${q.correctAnswer[0]}</div>
+        </div>`;
+    });
+    return;
+  }
+  $("stats").textContent=
+    `${inWrong?"错题":"全部"} ${i+1}/${view.length}｜错题 ${wrong.size}`;
+  const percent = Math.round((i+1)/view.length*100);
+  setSyncStatus(`📊 进度 ${percent}%`);
+
+  // 普通模式解析题干图片
+  const parsedTitle = parseQuestionTitle(view[i].title);
+  c.innerHTML=`<div class="question">${parsedTitle}</div>`;
+  // ====== 临时兜底：首题偶发空白（异步/首帧时序问题）======
+  // 如后期确认不再出现，可安全删除
+  if(!parsedTitle || parsedTitle.trim()===""){
+    log("⚠️ 首题 title 尚未就绪，触发一次重渲染兜底");
+    setTimeout(render, 0);
+    return;
+  }
+  const opt=document.createElement("div");
+  opt.className="options";
+
+  view[i].options.forEach(o=>{
+    const d=document.createElement("div");
+    d.className="option";
+    d.textContent=o.label+". "+o.text;
+    d.onclick=()=>{
+      hasProgress=true;
+      document.querySelectorAll(".option")
+        .forEach(x=>x.classList.remove("correct","wrong"));
+      if(o.text===view[i].correctAnswer[0]){
+        d.classList.add("correct");
+        if($("autoNext").checked)setTimeout(next,300);
+      }else{
+        d.classList.add("wrong");
+        wrong.add(view[i]._idx);
+        saveRemoteProgress();
+
+        // 显示正确答案
+        document.querySelectorAll(".option").forEach(opt=>{
+          if(opt.textContent.includes(view[i].correctAnswer[0])){
+            opt.classList.add("correct");
+          }
+        });
+      }
+    };
+    opt.appendChild(d);
+  });
+  c.appendChild(opt);
+}
+
+/* 控制 */
+function next(){
+  if(i<view.length-1){
+    i++;
+    saveRemoteProgress();
+    render();
+  }
+}
+function prev(){
+  if(i>0){
+    i--;
+    saveRemoteProgress();
+    render();
+  }
+}
+function toggleWrong(){
+  inWrong=!inWrong;
+  view=inWrong?[...wrong].map(n=>all[n]):all;
+  i=0;render();
+}
+function togglePreview(){
+  preview=!preview;render();
+}
+// ====== 新增：Netlify Blobs 同步 ======
+async function saveRemoteProgress(){
+  if(!userKey || !fileHash) return;
+  log("➡️ 尝试保存云端进度");
+  setSyncStatus("☁️ 保存中...");
+
+  const key = `progress:${userKey}:${fileHash}`;
+  try{
+    await fetch("/.netlify/functions/progress",{
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({
+        key,
+        data:{
+          currentIndex:i,
+          wrongIndexes:[...wrong],
+          time:Date.now(),
+          fileName: $("fileName").textContent,
+          total: view.length
+        }
+      })
+    });
+    log("✅ 云端进度保存请求已发送");
+    setSyncStatus("☁️ 已同步");
+  }catch(e){
+    log("❌ 云端保存失败（Blobs 可能未启用）");
+    setSyncStatus("⚠️ 云端不可用");
+  }
+}
+
+async function loadRemoteProgress(){
+  if(!userKey || !fileHash) return;
+  log("⬇️ 尝试拉取云端进度");
+  const key = `progress:${userKey}:${fileHash}`;
+  const r = await fetch(`/.netlify/functions/progress?key=${key}`);
+  if(!r.ok){
+    log("❌ 云端进度接口不可用（Blobs / Functions 未就绪）");
+    return;
+  }
+  const data = await r.json();
+
+  if(data){
+    log("✅ 云端进度已恢复");
+    i = data.currentIndex || 0;
+    wrong = new Set(data.wrongIndexes || []);
+    setSyncStatus("☁️ 已恢复云端进度");
+  }
+}
+/* 导出 / 导入复习包 */
+function exportReview(){
+  if(!all.length){
+    alert("请先导入题库");
+    return;
+  }
+
+  // 获取当前北京时间
+  const now = new Date();
+  const beijingTime = new Date(now.getTime() + 8*60*60*1000); // UTC+8
+
+  const pad = n => n.toString().padStart(2,'0');
+  const timeStr = 
+    pad(beijingTime.getMonth()+1) +  // 月
+    pad(beijingTime.getDate()) +     // 日
+    pad(beijingTime.getHours()) +    // 时
+    pad(beijingTime.getMinutes());   // 分
+
+  // 题库名称去掉扩展名
+  const fileNameText = $("fileName").textContent.replace(/\.[^.]+$/,'');
+
+  // 构造导出文件名
+  const exportName = `RE${timeStr}_${fileNameText}.txt`;
+
+  // 导出内容
+  const data={
+    currentIndex:i,
+    wrongIndexes:[...wrong],
+    time:beijingTime.toLocaleString('zh-CN',{hour12:false})
+  };
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"text/plain"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=exportName;
+  a.click();
+}
+function importReview(){
+  reviewInput.click();
+}
+reviewInput.onchange=e=>{
+  const f=e.target.files[0];
+  if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const data=JSON.parse(r.result);
+      if(typeof data.currentIndex==="number") i=data.currentIndex;
+      if(Array.isArray(data.wrongIndexes))
+        data.wrongIndexes.forEach(n=>wrong.add(n));
+      render();
+      alert("复习进度已恢复");
+    }catch{
+      alert("复习包格式错误");
+    }
+  };
+  r.readAsText(f);
+};
+function jumpToMenu(){
+  if(!all.length){
+    alert("请先导入题库");
+    return;
+  }
+  const val = parseInt(document.getElementById("jumpInputMenu").value);
+  if(isNaN(val) || val < 1 || val > view.length){
+    alert("请输入有效题号 (1-"+view.length+")");
+    return;
+  }
+  i = val - 1; // 数组从0开始
+  render();
+  // 不关闭菜单，这里不调用 $("menuList").classList.remove("show");
+}
+// 阻止点击输入框收起菜单
+const inputMenu = document.getElementById("jumpInputMenu");
+if(inputMenu){
+  inputMenu.addEventListener("click", e => e.stopPropagation());
+  inputMenu.addEventListener("mousedown", e => e.stopPropagation());
+}
+
+// ====== 新增：进度列表 ======
+async function showProgressList(){
+  if(!userKey){
+    alert("请先登录");
+    return;
+  }
+  $("progressList").innerHTML = "加载中...";
+  $("progressMask").style.display = "flex";
+
+  const r = await fetch(`/.netlify/functions/progress?list=1&userKey=${userKey}`);
+  const list = await r.json();
+
+  if(!list.length){
+    $("progressList").innerHTML = "暂无进度";
+    return;
+  }
+
+  $("progressList").innerHTML = list.map(item=>{
+    const pct = item.total
+      ? Math.round((item.currentIndex+1)/item.total*100)
+      : "";
+    return `
+      <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+        <div>📄 ${item.fileName || item.fileHash.slice(0,8)}</div>
+        <div style="color:var(--muted)">
+          进度：${item.currentIndex+1} / ${item.total || "?"}
+          ${pct ? `（${pct}%）` : ""}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function closeProgressList(){
+  $("progressMask").style.display = "none";
+}
+
+/* 夜间 */
+darkMode.onchange=e=>{
+  document.body.classList.toggle("dark",e.target.checked);
+};
+(function autoDark(){
+  const h=new Date().getHours();
+  if(h>=19||h<=6){
+    document.body.classList.add("dark");
+    $("darkMode").checked=true;
+  }
+})();
+
+window.addEventListener("beforeunload",e=>{
+  if(hasProgress){
+    e.preventDefault();e.returnValue="";
+  }
+});
+
+ensureLogin();
+</script>
+
+</body>
+<!-- ====== 临时调试日志窗口（Blobs / 登录 / 同步）======
+     ⚠️ 仅用于调试，后期可整体删除 ====== -->
+<div id="debugLog" style="
+  position:fixed;
+  right:10px;
+  bottom:10px;
+  width:320px;
+  max-height:40vh;
+  overflow:auto;
+  background:rgba(0,0,0,.75);
+  color:#e5e7eb;
+  font-size:12px;
+  padding:10px;
+  border-radius:12px;
+  z-index:9999;
+  display:none;
+">
+  <div style="font-weight:600;margin-bottom:6px">🪵 调试日志</div>
+</div>
+</html>
